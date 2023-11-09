@@ -64,7 +64,9 @@ const miner = async (currentTimer, isPlaying) => {
         }
         else if (isPlaying && currentTimer > 0) {
             waitForAnyElement([".videoPlay"]).then((element) => {
-                element.click();
+                const video = document.querySelector("video");
+                video.muted = true;
+                video.play();
             })
             setTimeout(() => {
                 const nextVideo = document.querySelector("a[href^='/video']");
