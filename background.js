@@ -62,32 +62,34 @@ const miner = async (currentTimer, isPlaying) => {
                 }, 500)
             })
         }
-        else if (isPlaying && currentTimer > 0) {
-            waitForAnyElement([".videoPlay"]).then((element) => {
+        else if (isPlaying) {
+            waitForAnyElement(["video"]).then((element) => {
                 const video = document.querySelector("video");
-                video.muted = true;
-                video.play();
-            })
-            setTimeout(() => {
-                const nextVideo = document.querySelector("a[href^='/video']");
-                const shouldScroll = !isElementInViewport(nextVideo);
-                var timeString;
-                if (shouldScroll) {
-                    scrollToElement(nextVideo);
+                video.addEventListener('loadeddata', () => {
+                    video.muted = true;
+                    video.play();
+                    const endMillis = parseInt(video.duration) * 1000;
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.visibilityState === 'hidden') {
+                            console.log("visiblity change", document.visibilityState)
+                            video.play();
+                        }
+                    })
+                    console.log(endMillis, "endMillis")
+                    setTimeout(() => {
+                        const nextVideo = document.querySelector("a[href^='/video']");
+                        const shouldScroll = !isElementInViewport(nextVideo);
+                        if (shouldScroll) {
+                            scrollToElement(nextVideo);
+                        }
+                        setTimeout(() => {
+                            nextVideo.click();
+                            resolve({ isPlaying: true, currentTimer: endMillis });
+                        }, 500)
+                    }, endMillis)
                 }
-                setTimeout(() => {
-                    timeString = nextVideo.querySelector("span").innerText;
-                    var endMillis = 0
-                    if (timeString) {
-                        // const [startTime, endTime] = timeString.split(' / ');
-                        const [endMinutes, endSeconds] = timeString.split(':').map(Number);
-                        endMillis = (endMinutes * 60 + endSeconds) * 1000;
-                        console.log(`End time in milliseconds: ${endMillis} end minutes ${timeString} end seconds ${endSeconds}`);
-                    }
-                    nextVideo.click();
-                    resolve({ isPlaying: true, currentTimer: endMillis });
-                }, 500)
-            }, currentTimer)
+                )
+            })
 
         }
 
