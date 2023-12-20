@@ -1,7 +1,7 @@
-let currentTimer = null;
 let isPlaying = null;
-const miner = async (currentTimer, isPlaying) => {
+const miner = async (isPlaying) => {
     return new Promise((resolve) => {
+
         const isElementInViewport = (element) => {
             const elementRect = element.getBoundingClientRect();
             const windowHeight = window.innerHeight || document.documentElement.clientHeight;
@@ -14,6 +14,7 @@ const miner = async (currentTimer, isPlaying) => {
 
             return isFullyVisible || isPartiallyVisible;
         }
+
         const scrollToElement = (element) => {
             if (element) {
                 const elementRect = element.getBoundingClientRect();
@@ -26,7 +27,8 @@ const miner = async (currentTimer, isPlaying) => {
                 });
             }
         }
-        const waitForAnyElement = (selectors) => {
+
+        const waitForAnyElement = (selectors, word) => {
             return new Promise((resolve) => {
                 const observer = new MutationObserver((mutationsList) => {
                     mutationsList.forEach((mutation) => {
@@ -43,85 +45,59 @@ const miner = async (currentTimer, isPlaying) => {
             });
         };
 
+        const goToNextVideo = () => {
+            const nextVideo = document.querySelector("a[href^='/video']");
+            window.location.href = nextVideo.href;
+        };
+
         if (!isPlaying) {
             // console.log("document.querySelector", document.querySelector(".videoPlay"));
             // Callback function to be called when a mutation is detected
             waitForAnyElement(['a[href^="/video"]']).then((element) => {
                 setTimeout(() => {
-                    const timeString = element.querySelector("span").innerText;
-                    console.log(timeString, "timestring")
-                    var endMillis = 0;
-                    if (timeString) {
-                        // const [startTime, endTime] = timeString.split(' / ');
-                        const [endMinutes, endSeconds] = timeString.split(':').map(Number);
-                        endMillis = (endMinutes * 60 + endSeconds) * 1000;
-                        console.log(`End time in milliseconds: ${endMillis} end minutes ${timeString} end seconds ${endSeconds}`);
-                    }
                     element.click();
-                    resolve({ isPlaying: true, currentTimer: endMillis });
+                    resolve({ isPlaying: true });
                 }, 500)
             })
         }
         else if (isPlaying) {
             waitForAnyElement(["video"]).then((element) => {
                 const video = document.querySelector("video");
+                console.log("video", video)
                 video.addEventListener('loadeddata', () => {
                     video.muted = true;
                     video.play();
-                    const endMillis = parseInt(video.duration) * 1000;
-                    document.addEventListener('visibilitychange', () => {
-                        if (document.visibilityState === 'hidden') {
-                            console.log("visiblity change", document.visibilityState)
-                            video.play();
-                        }
+                    video.addEventListener('ended', () => {
+                        resolve({ isPlaying: true });
+                        goToNextVideo()
                     })
-                    console.log(endMillis, "endMillis")
+                })
+                video.addEventListener("pause", (e) => {
                     setTimeout(() => {
-                        const nextVideo = document.querySelector("a[href^='/video']");
-                        const shouldScroll = !isElementInViewport(nextVideo);
-                        if (shouldScroll) {
-                            scrollToElement(nextVideo);
+                        if (Array.from(document.querySelectorAll("span"))
+                            .find(el => el.textContent.includes("Error"))) {
+                            resolve({ isPlaying: true });
+                            goToNextVideo();
                         }
-                        setTimeout(() => {
-                            nextVideo.click();
-                            resolve({ isPlaying: true, currentTimer: endMillis });
-                        }, 500)
-                    }, endMillis)
-                }
-                )
+                    }, 2000)
+                })
+                setTimeout(() => {
+                    if (video.readyState <= 2) {
+                        resolve({ isPlaying: true });
+                        goToNextVideo()
+                    }
+                }, 60000)
             })
 
         }
 
     })
-    // setTimeout(() => {
-    //     const timeString = document.querySelector("#contentPlayer > div.player-ternal > div:nth-child(3) > div > div.col.pt-2.px-4 > div > div:nth-child(4) > p > span").innerHTML
-
-    //     // Split the time string into start and end times
-    //     const [startTime, endTime] = timeString.split(' / ');
-    //     const [endMinutes, endSeconds] = endTime.split(':').map(Number);
-    //     const endMillis = (endMinutes * 60 + endSeconds) * 1000;
-
-    //     console.log(`End time in milliseconds: ${endMillis} end minutes ${timeString} end seconds ${endSeconds}`);
-    //     if (document.querySelector('.videoPlay')) document.querySelector('.videoPlay').click();
-    //     setTimeout(() => {
-    //         window.scroll({
-    //             top: 500,
-    //             behavior: "smooth",
-    //         });
-    //         document.querySelector('a[href^="/video"]').click();
-    //         setTimeout(() => {
-    //             window.location.reload()
-    //         }, 2500)
-    //     }, endMillis)
-    // }, 3000)
 
 }
 let scriptExecuted = false;
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === "complete" && String(tab.url).includes('chainflix.net') && !scriptExecuted) {
         scriptExecuted = true;
-        console.log("tabId", tabId, tab)
         chrome.tabs.query({}, async (tabs) => {
             if (tabs.some(tab => tab.id === tabId)) {
                 const muted = !tab.mutedInfo.muted;
@@ -129,12 +105,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 chrome.scripting.executeScript({
                     target: { tabId },
                     function: miner,
-                    args: [currentTimer, isPlaying]
+                    args: [isPlaying]
                 }, (result) => {
                     if (result && result.length > 0) {
-                        currentTimer = result[0].result.currentTimer;
                         isPlaying = result[0].result.isPlaying
-                        console.log({ isPlaying, currentTimer })
+                        console.log({ isPlaying })
                         scriptExecuted = false;
                     }
                 })
